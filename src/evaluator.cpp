@@ -8,6 +8,7 @@ static bool isTruthy(ObjectPtr obj) {
     if (auto b = std::dynamic_pointer_cast<Boolean>(obj)) return b->value;
     if (auto i = std::dynamic_pointer_cast<Integer>(obj)) return i->value != 0;
     if (auto f = std::dynamic_pointer_cast<Float>(obj)) return f->value != 0.0;
+    if (auto s = std::dynamic_pointer_cast<String>(obj)) return !s->value.empty();
     if (std::dynamic_pointer_cast<Null>(obj)) return false;
     return true;
 }

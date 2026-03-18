@@ -325,7 +325,7 @@ void testErrorHandling() {
         {"-true;", true},              // Invalid prefix operator
         {"unknownVar;", true},         // Undefined variable
         {"5 / 0;", true},              // Division by zero
-        {"fn(1, 2);", true},           // Calling non-function
+        {"true + false;", true},       // Boolean arithmetic not supported
         {"len();", true},              // Wrong argument count
     };
     

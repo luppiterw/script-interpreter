@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <algorithm>
 
 using namespace script_lang;
 
