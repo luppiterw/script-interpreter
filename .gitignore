@@ -1,0 +1,151 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.*
+*.sln
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.pdb
+*.suo
+*.userosscache
+*.sln.docstates
+*.obj
+*.pch
+*.log
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+*.manifest
+*.res
+*.rct
+*.idl
+*.tlb
+*.ilk
+*.meta
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlh
+*.tli
+*.tmp
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Qoder CLI
+.qoder/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (CLion, IntelliJ)
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+
+# Package managers
+vcpkg_installed/
+conan/
+
+# Test outputs
+Testing/
+CTestCostData.txt
+CTestTestfile.cmake
+
+# Coverage reports
+*.gcno
+*.gcda
+*.gcov
+coverage/
+*.lcov
+
+# Profiling
+*.prof
+gmon.out
+*.profdata
+*.profraw
+
+# Documentation
+docs/_build/
+doxygen/
+
+# Temporary files
+*.tmp
+*.temp
+*.temp.*
+
+# MVP test file
+mvp
+mvp.exe
