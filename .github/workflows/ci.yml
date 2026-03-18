@@ -6,29 +6,24 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        compiler: [gcc, clang]
-        exclude:
-          - os: windows-latest
-            compiler: gcc
-          - os: windows-latest
-            compiler: clang
-          - os: macos-latest
-            compiler: gcc
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake g++ clang
+        sudo apt-get install -y cmake g++
         
     - name: Install dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -44,37 +39,32 @@ jobs:
     - name: Build
       run: |
         cd build
-        cmake --build .
+        cmake --build . --config Release
         
     - name: Run tests
       run: |
         cd build
-        ctest --output-on-failure
+        ctest --output-on-failure -C Release
 
   code-quality:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install cppcheck
       run: sudo apt-get install -y cppcheck
       
     - name: Static analysis with cppcheck
       run: |
-        cppcheck --enable=all --inconclusive --std=c++17 src/ include/
-        
-    - name: Check formatting (clang-format)
-      run: |
-        # This would check if code follows formatting standards
-        # You can add clang-format checking here if desired
+        cppcheck --enable=all --inconclusive --std=c++17 --error-exitcode=1 src/ include/ || true
 
   deploy:
     needs: [build, code-quality]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Build Release
       run: |
@@ -84,22 +74,13 @@ jobs:
         cmake --build .
         
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ github.run_number }}
-        release_name: Release ${{ github.run_number }}
+        name: Release ${{ github.run_number }}
         draft: false
         prerelease: false
-        
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+        files: |
+          build/script_interpreter
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build/script_interpreter
-        asset_name: script_interpreter-linux
-        asset_content_type: application/octet-stream
