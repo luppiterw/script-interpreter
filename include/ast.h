@@ -120,6 +120,17 @@ public:
     std::string toString() const override { return token.literal; }
 };
 
+// Null literal
+class NullLiteral : public Expression {
+public:
+    Token token;
+    
+    NullLiteral(const Token& token) : token(token) {}
+    
+    std::string tokenLiteral() const override { return token.literal; }
+    std::string toString() const override { return "null"; }
+};
+
 // Prefix expression (e.g., !x, -x)
 class PrefixExpression : public Expression {
 public:
@@ -271,6 +282,44 @@ public:
     }
 };
 
+// Array literal
+class ArrayLiteral : public Expression {
+public:
+    Token token;
+    std::vector<std::unique_ptr<Expression>> elements;
+    
+    ArrayLiteral(const Token& token) : token(token) {}
+    
+    std::string tokenLiteral() const override { return token.literal; }
+    std::string toString() const override {
+        std::string result = "[";
+        for (size_t i = 0; i < elements.size(); ++i) {
+            result += elements[i]->toString();
+            if (i < elements.size() - 1) {
+                result += ", ";
+            }
+        }
+        result += "]";
+        return result;
+    }
+};
+
+// Index expression (e.g., arr[0])
+class IndexExpression : public Expression {
+public:
+    Token token;
+    std::unique_ptr<Expression> left;
+    std::unique_ptr<Expression> index;
+    
+    IndexExpression(const Token& token, std::unique_ptr<Expression> left)
+        : token(token), left(std::move(left)) {}
+    
+    std::string tokenLiteral() const override { return token.literal; }
+    std::string toString() const override {
+        return "(" + left->toString() + "[" + index->toString() + "])";
+    }
+};
+
 // Call expression
 class CallExpression : public Expression {
 public:
@@ -292,6 +341,37 @@ public:
         }
         result += ")";
         return result;
+    }
+};
+
+// While statement
+class WhileStatement : public Statement {
+public:
+    Token token;
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<BlockStatement> body;
+    
+    WhileStatement(const Token& token) : token(token) {}
+    
+    std::string tokenLiteral() const override { return token.literal; }
+    std::string toString() const override {
+        return "while (" + condition->toString() + ") " + body->toString();
+    }
+};
+
+// Assign expression (e.g., x = 5)
+class AssignExpression : public Expression {
+public:
+    Token token;
+    std::unique_ptr<Identifier> name;
+    std::unique_ptr<Expression> value;
+    
+    AssignExpression(const Token& token, std::unique_ptr<Identifier> name)
+        : token(token), name(std::move(name)) {}
+    
+    std::string tokenLiteral() const override { return token.literal; }
+    std::string toString() const override {
+        return name->toString() + " = " + value->toString();
     }
 };
 

@@ -10,12 +10,14 @@ namespace script_lang {
 
 enum class Precedence {
     LOWEST,
+    LOGICAL,     // && ||
     EQUALS,      // ==
     LESSGREATER, // > or <
     SUM,         // +
     PRODUCT,     // *
     PREFIX,      // -X or !X
-    CALL         // myFunction(X)
+    CALL,        // myFunction(X)
+    INDEX        // array[index]
 };
 
 class Parser {
@@ -53,6 +55,7 @@ private:
     std::unique_ptr<LetStatement> parseLetStatement();
     std::unique_ptr<ReturnStatement> parseReturnStatement();
     std::unique_ptr<ExpressionStatement> parseExpressionStatement();
+    std::unique_ptr<WhileStatement> parseWhileStatement();
     
     // Expression parsing
     std::unique_ptr<Expression> parseIdentifier();
@@ -60,12 +63,15 @@ private:
     std::unique_ptr<Expression> parseFloatLiteral();
     std::unique_ptr<Expression> parseStringLiteral();
     std::unique_ptr<Expression> parseBooleanLiteral();
+    std::unique_ptr<Expression> parseNullLiteral();
     std::unique_ptr<Expression> parsePrefixExpression();
     std::unique_ptr<Expression> parseInfixExpression(std::unique_ptr<Expression> left);
     std::unique_ptr<Expression> parseGroupedExpression();
     std::unique_ptr<Expression> parseIfExpression();
     std::unique_ptr<Expression> parseFunctionLiteral();
     std::unique_ptr<Expression> parseCallExpression(std::unique_ptr<Expression> function);
+    std::unique_ptr<Expression> parseArrayLiteral();
+    std::unique_ptr<Expression> parseIndexExpression(std::unique_ptr<Expression> left);
     
     // Helper functions
     std::unique_ptr<BlockStatement> parseBlockStatement();

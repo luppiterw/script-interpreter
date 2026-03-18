@@ -36,6 +36,19 @@ public:
         return store[name];
     }
     
+    // Update an existing variable in this or any enclosing scope
+    bool update(const std::string& name, ObjectPtr obj) {
+        auto it = store.find(name);
+        if (it != store.end()) {
+            it->second = std::move(obj);
+            return true;
+        }
+        if (outer) {
+            return outer->update(name, obj);
+        }
+        return false;
+    }
+    
     std::shared_ptr<Environment> getOuter() const {
         return outer;
     }

@@ -44,11 +44,17 @@ target_link_libraries(script_interpreter script_interpreter_lib)
 add_executable(lexer_test tests/lexer_test.cpp)
 target_link_libraries(lexer_test script_interpreter_lib)
 
+add_executable(lexer_extended_test tests/lexer_extended_test.cpp)
+target_link_libraries(lexer_extended_test script_interpreter_lib)
+
 add_executable(parser_test tests/parser_test.cpp)
 target_link_libraries(parser_test script_interpreter_lib)
 
 add_executable(evaluator_test tests/evaluator_test.cpp)
 target_link_libraries(evaluator_test script_interpreter_lib)
+
+add_executable(evaluator_extended_test tests/evaluator_extended_test.cpp)
+target_link_libraries(evaluator_extended_test script_interpreter_lib)
 
 # Installation
 install(TARGETS script_interpreter DESTINATION bin)
@@ -59,5 +65,7 @@ enable_testing()
 
 # Add tests
 add_test(NAME lexer_test COMMAND lexer_test)
+add_test(NAME lexer_extended_test COMMAND lexer_extended_test)
 add_test(NAME parser_test COMMAND parser_test)
 add_test(NAME evaluator_test COMMAND evaluator_test)
+add_test(NAME evaluator_extended_test COMMAND evaluator_extended_test)

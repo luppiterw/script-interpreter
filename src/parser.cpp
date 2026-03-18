@@ -6,6 +6,8 @@ namespace script_lang {
 Parser::Parser(Lexer lexer) : lexer(std::move(lexer)) {
     // Initialize precedences
     precedences = {
+        {TokenType::AND, Precedence::LOGICAL},
+        {TokenType::OR, Precedence::LOGICAL},
         {TokenType::EQUAL, Precedence::EQUALS},
         {TokenType::NOT_EQUAL, Precedence::EQUALS},
         {TokenType::LESS, Precedence::LESSGREATER},
@@ -17,7 +19,8 @@ Parser::Parser(Lexer lexer) : lexer(std::move(lexer)) {
         {TokenType::MULTIPLY, Precedence::PRODUCT},
         {TokenType::DIVIDE, Precedence::PRODUCT},
         {TokenType::MODULO, Precedence::PRODUCT},
-        {TokenType::LEFT_PAREN, Precedence::CALL}
+        {TokenType::LEFT_PAREN, Precedence::CALL},
+        {TokenType::LEFT_BRACKET, Precedence::INDEX}
     };
     
     // Register prefix parsing functions
@@ -27,11 +30,13 @@ Parser::Parser(Lexer lexer) : lexer(std::move(lexer)) {
     registerPrefix(TokenType::STRING, [this]() { return parseStringLiteral(); });
     registerPrefix(TokenType::TRUE, [this]() { return parseBooleanLiteral(); });
     registerPrefix(TokenType::FALSE, [this]() { return parseBooleanLiteral(); });
+    registerPrefix(TokenType::NULL_, [this]() { return parseNullLiteral(); });
     registerPrefix(TokenType::NOT, [this]() { return parsePrefixExpression(); });
     registerPrefix(TokenType::MINUS, [this]() { return parsePrefixExpression(); });
     registerPrefix(TokenType::LEFT_PAREN, [this]() { return parseGroupedExpression(); });
     registerPrefix(TokenType::IF, [this]() { return parseIfExpression(); });
     registerPrefix(TokenType::FUNCTION, [this]() { return parseFunctionLiteral(); });
+    registerPrefix(TokenType::LEFT_BRACKET, [this]() { return parseArrayLiteral(); });
     
     // Register infix parsing functions
     registerInfix(TokenType::PLUS, [this](auto left) { return parseInfixExpression(std::move(left)); });
@@ -45,7 +50,10 @@ Parser::Parser(Lexer lexer) : lexer(std::move(lexer)) {
     registerInfix(TokenType::LESS_EQUAL, [this](auto left) { return parseInfixExpression(std::move(left)); });
     registerInfix(TokenType::GREATER, [this](auto left) { return parseInfixExpression(std::move(left)); });
     registerInfix(TokenType::GREATER_EQUAL, [this](auto left) { return parseInfixExpression(std::move(left)); });
+    registerInfix(TokenType::AND, [this](auto left) { return parseInfixExpression(std::move(left)); });
+    registerInfix(TokenType::OR, [this](auto left) { return parseInfixExpression(std::move(left)); });
     registerInfix(TokenType::LEFT_PAREN, [this](auto left) { return parseCallExpression(std::move(left)); });
+    registerInfix(TokenType::LEFT_BRACKET, [this](auto left) { return parseIndexExpression(std::move(left)); });
     
     nextToken();
     nextToken();
@@ -118,6 +126,8 @@ std::unique_ptr<Statement> Parser::parseStatement() {
             return parseLetStatement();
         case TokenType::RETURN:
             return parseReturnStatement();
+        case TokenType::WHILE:
+            return parseWhileStatement();
         default:
             return parseExpressionStatement();
     }
@@ -173,6 +183,29 @@ std::unique_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
     return stmt;
 }
 
+std::unique_ptr<WhileStatement> Parser::parseWhileStatement() {
+    auto stmt = std::make_unique<WhileStatement>(curToken);
+    
+    if (!expectPeek(TokenType::LEFT_PAREN)) {
+        return nullptr;
+    }
+    
+    nextToken();
+    stmt->condition = parseExpression(Precedence::LOWEST);
+    
+    if (!expectPeek(TokenType::RIGHT_PAREN)) {
+        return nullptr;
+    }
+    
+    if (!expectPeek(TokenType::LEFT_BRACE)) {
+        return nullptr;
+    }
+    
+    stmt->body = parseBlockStatement();
+    
+    return stmt;
+}
+
 std::unique_ptr<Expression> Parser::parseExpression(Precedence precedence) {
     auto prefix = prefixParseFns.find(curToken.type);
     if (prefix == prefixParseFns.end()) {
@@ -190,6 +223,21 @@ std::unique_ptr<Expression> Parser::parseExpression(Precedence precedence) {
         
         nextToken();
         leftExp = infix->second(std::move(leftExp));
+    }
+    
+    // Handle assignment: identifier = expression
+    if (peekTokenIs(TokenType::ASSIGN)) {
+        if (auto ident = dynamic_cast<Identifier*>(leftExp.get())) {
+            auto assignToken = peekToken;
+            nextToken(); // consume '='
+            nextToken(); // move to RHS
+            auto assignExpr = std::make_unique<AssignExpression>(
+                assignToken,
+                std::make_unique<Identifier>(ident->token)
+            );
+            assignExpr->value = parseExpression(Precedence::LOWEST);
+            return assignExpr;
+        }
     }
     
     return leftExp;
@@ -213,6 +261,10 @@ std::unique_ptr<Expression> Parser::parseStringLiteral() {
 
 std::unique_ptr<Expression> Parser::parseBooleanLiteral() {
     return std::make_unique<BooleanLiteral>(curToken);
+}
+
+std::unique_ptr<Expression> Parser::parseNullLiteral() {
+    return std::make_unique<NullLiteral>(curToken);
 }
 
 std::unique_ptr<Expression> Parser::parsePrefixExpression() {
@@ -367,6 +419,44 @@ void Parser::registerPrefix(TokenType type, prefixParseFn fn) {
 
 void Parser::registerInfix(TokenType type, infixParseFn fn) {
     infixParseFns[type] = std::move(fn);
+}
+
+std::unique_ptr<Expression> Parser::parseArrayLiteral() {
+    auto array = std::make_unique<ArrayLiteral>(curToken);
+    
+    // Empty array
+    if (peekTokenIs(TokenType::RIGHT_BRACKET)) {
+        nextToken();
+        return array;
+    }
+    
+    nextToken();
+    array->elements.push_back(parseExpression(Precedence::LOWEST));
+    
+    while (peekTokenIs(TokenType::COMMA)) {
+        nextToken();
+        nextToken();
+        array->elements.push_back(parseExpression(Precedence::LOWEST));
+    }
+    
+    if (!expectPeek(TokenType::RIGHT_BRACKET)) {
+        return nullptr;
+    }
+    
+    return array;
+}
+
+std::unique_ptr<Expression> Parser::parseIndexExpression(std::unique_ptr<Expression> left) {
+    auto exp = std::make_unique<IndexExpression>(curToken, std::move(left));
+    
+    nextToken();
+    exp->index = parseExpression(Precedence::LOWEST);
+    
+    if (!expectPeek(TokenType::RIGHT_BRACKET)) {
+        return nullptr;
+    }
+    
+    return exp;
 }
 
 } // namespace script_lang

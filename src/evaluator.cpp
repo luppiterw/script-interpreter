@@ -4,6 +4,14 @@
 
 namespace script_lang {
 
+static bool isTruthy(ObjectPtr obj) {
+    if (auto b = std::dynamic_pointer_cast<Boolean>(obj)) return b->value;
+    if (auto i = std::dynamic_pointer_cast<Integer>(obj)) return i->value != 0;
+    if (auto f = std::dynamic_pointer_cast<Float>(obj)) return f->value != 0.0;
+    if (std::dynamic_pointer_cast<Null>(obj)) return false;
+    return true;
+}
+
 Evaluator::Evaluator() {
     environment = std::make_shared<Environment>();
     initBuiltins();
@@ -144,6 +152,8 @@ ObjectPtr Evaluator::evalStatement(const Statement* stmt) {
         auto val = evalExpression(returnStmt->returnValue.get());
         if (std::dynamic_pointer_cast<Error>(val)) return val;
         return makeReturnValue(val);
+    } else if (auto whileStmt = dynamic_cast<const WhileStatement*>(stmt)) {
+        return evalWhileStatement(whileStmt);
     } else if (auto exprStmt = dynamic_cast<const ExpressionStatement*>(stmt)) {
         return evalExpression(exprStmt->expression.get());
     }
@@ -164,6 +174,8 @@ ObjectPtr Evaluator::evalExpression(const Expression* expression) {
         return makeString(str->value);
     } else if (auto boolean = dynamic_cast<const BooleanLiteral*>(expression)) {
         return makeBoolean(boolean->value);
+    } else if (dynamic_cast<const NullLiteral*>(expression)) {
+        return makeNull();
     } else if (auto prefix = dynamic_cast<const PrefixExpression*>(expression)) {
         auto right = evalExpression(prefix->right.get());
         if (std::dynamic_pointer_cast<Error>(right)) return right;
@@ -185,6 +197,18 @@ ObjectPtr Evaluator::evalExpression(const Expression* expression) {
         // This is safe as long as the AST outlives the function execution.
         auto bodyPtr = std::shared_ptr<BlockStatement>(const_cast<BlockStatement*>(fn->body.get()), [](BlockStatement*){});
         return makeFunction(params, bodyPtr, environment);
+    } else if (auto arr = dynamic_cast<const ArrayLiteral*>(expression)) {
+        auto elements = evalExpressions(arr->elements);
+        if (elements.size() == 1 && std::dynamic_pointer_cast<Error>(elements[0])) {
+            return elements[0];
+        }
+        return makeArray(std::move(elements));
+    } else if (auto idx = dynamic_cast<const IndexExpression*>(expression)) {
+        auto left = evalExpression(idx->left.get());
+        if (std::dynamic_pointer_cast<Error>(left)) return left;
+        auto index = evalExpression(idx->index.get());
+        if (std::dynamic_pointer_cast<Error>(index)) return index;
+        return evalIndexExpression(left, index);
     } else if (auto call = dynamic_cast<const CallExpression*>(expression)) {
         auto function = evalExpression(call->function.get());
         if (std::dynamic_pointer_cast<Error>(function)) return function;
@@ -195,6 +219,14 @@ ObjectPtr Evaluator::evalExpression(const Expression* expression) {
         }
         
         return applyFunction(function, args);
+    } else if (auto assign = dynamic_cast<const AssignExpression*>(expression)) {
+        auto val = evalExpression(assign->value.get());
+        if (std::dynamic_pointer_cast<Error>(val)) return val;
+        // Update existing variable in current or outer scope
+        if (!environment->update(assign->name->value, val)) {
+            return makeError("cannot assign to undeclared variable: " + assign->name->value);
+        }
+        return val;
     }
     
     return makeNull();
@@ -222,6 +254,10 @@ ObjectPtr Evaluator::evalPrefixExpression(const std::string& op, ObjectPtr right
 }
 
 ObjectPtr Evaluator::evalInfixExpression(const std::string& op, ObjectPtr left, ObjectPtr right) {
+    // Logical operators (short-circuit already evaluated both sides, but handle here)
+    if (op == "&&") return makeBoolean(isTruthy(left) && isTruthy(right));
+    if (op == "||") return makeBoolean(isTruthy(left) || isTruthy(right));
+
     // Integer operations
     if (auto leftInt = std::dynamic_pointer_cast<Integer>(left)) {
         if (auto rightInt = std::dynamic_pointer_cast<Integer>(right)) {
@@ -274,9 +310,22 @@ ObjectPtr Evaluator::evalInfixExpression(const std::string& op, ObjectPtr left, 
     // String operations
     else if (auto leftStr = std::dynamic_pointer_cast<String>(left)) {
         if (op == "+") {
-            if (auto rightStr = std::dynamic_pointer_cast<String>(right)) {
-                return makeString(leftStr->value + rightStr->value);
+            // Allow string + anything by converting to string representation
+            std::string rightStr;
+            if (auto rs = std::dynamic_pointer_cast<String>(right)) {
+                rightStr = rs->value;
+            } else if (auto ri = std::dynamic_pointer_cast<Integer>(right)) {
+                rightStr = ri->inspect();
+            } else if (auto rf = std::dynamic_pointer_cast<Float>(right)) {
+                rightStr = rf->inspect();
+            } else if (auto rb = std::dynamic_pointer_cast<Boolean>(right)) {
+                rightStr = rb->inspect();
+            } else if (std::dynamic_pointer_cast<Null>(right)) {
+                rightStr = "null";
+            } else {
+                rightStr = right->inspect();
             }
+            return makeString(leftStr->value + rightStr);
         }
         if (op == "==") {
             if (auto rightStr = std::dynamic_pointer_cast<String>(right)) {
@@ -310,24 +359,7 @@ ObjectPtr Evaluator::evalIfExpression(const IfExpression* ie) {
     auto condition = evalExpression(ie->condition.get());
     if (std::dynamic_pointer_cast<Error>(condition)) return condition;
     
-    // Check if condition is truthy
-    bool isTruthy = false;
-    if (auto boolCondition = std::dynamic_pointer_cast<Boolean>(condition)) {
-        isTruthy = boolCondition->value;
-    } else if (auto intCondition = std::dynamic_pointer_cast<Integer>(condition)) {
-        isTruthy = intCondition->value != 0;
-    } else if (auto floatCondition = std::dynamic_pointer_cast<Float>(condition)) {
-        isTruthy = floatCondition->value != 0.0;
-    } else if (auto strCondition = std::dynamic_pointer_cast<String>(condition)) {
-        isTruthy = !strCondition->value.empty();
-    } else if (std::dynamic_pointer_cast<Null>(condition)) {
-        isTruthy = false;
-    } else {
-        // For other types (like functions), consider them truthy
-        isTruthy = true;
-    }
-    
-    if (isTruthy) {
+    if (isTruthy(condition)) {
         return evalBlockStatement(ie->consequence.get());
     } else if (ie->alternative) {
         return evalBlockStatement(ie->alternative.get());
@@ -337,19 +369,41 @@ ObjectPtr Evaluator::evalIfExpression(const IfExpression* ie) {
 }
 
 ObjectPtr Evaluator::evalIdentifier(const Identifier* ident) {
-    // Check built-ins first
-    auto builtinIt = builtins.find(ident->value);
-    if (builtinIt != builtins.end()) {
-        return makeBuiltin(builtinIt->second);
-    }
-    
-    // Check environment
+    // Check environment first (local variables/parameters shadow builtins)
     auto val = environment->get(ident->value);
     if (val) {
         return val;
     }
     
+    // Fall back to built-ins
+    auto builtinIt = builtins.find(ident->value);
+    if (builtinIt != builtins.end()) {
+        return makeBuiltin(builtinIt->second);
+    }
+    
     return makeError("identifier not found: " + ident->value);
+}
+
+ObjectPtr Evaluator::evalWhileStatement(const WhileStatement* ws) {
+    ObjectPtr result = makeNull();
+    
+    while (true) {
+        auto condition = evalExpression(ws->condition.get());
+        if (std::dynamic_pointer_cast<Error>(condition)) return condition;
+        
+        // Check truthiness
+        if (!isTruthy(condition)) break;
+        
+        result = evalBlockStatement(ws->body.get());
+        
+        // Propagate return values and errors out of the loop
+        if (std::dynamic_pointer_cast<ReturnValue>(result) ||
+            std::dynamic_pointer_cast<Error>(result)) {
+            return result;
+        }
+    }
+    
+    return result;
 }
 
 std::vector<ObjectPtr> Evaluator::evalExpressions(const std::vector<std::unique_ptr<Expression>>& exps) {
@@ -362,6 +416,23 @@ std::vector<ObjectPtr> Evaluator::evalExpressions(const std::vector<std::unique_
         result.push_back(evaluated);
     }
     return result;
+}
+
+ObjectPtr Evaluator::evalIndexExpression(ObjectPtr left, ObjectPtr index) {
+    if (auto arr = std::dynamic_pointer_cast<Array>(left)) {
+        if (auto idx = std::dynamic_pointer_cast<Integer>(index)) {
+            int i = idx->value;
+            int size = static_cast<int>(arr->elements.size());
+            // Support negative indexing
+            if (i < 0) i = size + i;
+            if (i < 0 || i >= size) {
+                return makeNull();
+            }
+            return arr->elements[static_cast<size_t>(i)];
+        }
+        return makeError("array index must be INTEGER, got " + index->inspect());
+    }
+    return makeError("index operator not supported for " + left->inspect());
 }
 
 std::shared_ptr<Environment> Evaluator::extendFunctionEnv(const Function* fn, const std::vector<ObjectPtr>& args) {

@@ -26,6 +26,8 @@ private:
     ObjectPtr evalInfixExpression(const std::string& op, ObjectPtr left, ObjectPtr right);
     ObjectPtr evalIfExpression(const IfExpression* ie);
     ObjectPtr evalIdentifier(const Identifier* ident);
+    ObjectPtr evalIndexExpression(ObjectPtr left, ObjectPtr index);
+    ObjectPtr evalWhileStatement(const WhileStatement* ws);
     std::vector<ObjectPtr> evalExpressions(const std::vector<std::unique_ptr<Expression>>& exps);
     ObjectPtr applyFunction(ObjectPtr fn, const std::vector<ObjectPtr>& args);
     std::shared_ptr<Environment> extendFunctionEnv(const Function* fn, const std::vector<ObjectPtr>& args);
